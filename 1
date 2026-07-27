@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Motion Light</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    let lastMove = Date.now();
+    let last = { x: 0, y: 0, z: 0 };
+
+    const threshold = 0.8;
+    const idleTime = 1000; // 1 秒沒動作就黑屏
+
+    function motion(e) {
+      const a = e.accelerationIncludingGravity;
+      if (!a) return;
+
+      const x = a.x || 0;
+      const y = a.y || 0;
+      const z = a.z || 0;
+
+      const diff =
+        Math.abs(x - last.x) +
+        Math.abs(y - last.y) +
+        Math.abs(z - last.z);
+
+      last = { x, y, z };
+
+      if (diff > threshold) {
+        lastMove = Date.now();
+        document.body.style.background = "#fff";
+      }
+    }
+
+    async function start() {
+      if (
+        typeof DeviceMotionEvent !== "undefined" &&
+        typeof DeviceMotionEvent.requestPermission === "function"
+      ) {
+        const permission = await DeviceMotionEvent.requestPermission();
+        if (permission !== "granted") return;
+      }
+
+      window.addEventListener("devicemotion", motion);
+    }
+
+    document.body.addEventListener("click", start, { once: true });
+
+    setInterval(() => {
+      if (Date.now() - lastMove > idleTime) {
+        document.body.style.background = "#000";
+      }
+    }, 100);
+  </script>
+</body>
+</html>
