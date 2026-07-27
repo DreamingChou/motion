@@ -25,14 +25,14 @@
   </style>
 </head>
 <body>
-  <button id="start">進入 VR</button>
+  <button id="start">Enter VR</button>
   <canvas id="canvas"></canvas>
 
   <script>
     const canvas = document.getElementById("canvas");
     const button = document.getElementById("start");
 
-    const idleTime = 1000;       // 靜止 1 秒變黑
+    const idleTime = 100;       // 靜止 100ms 變黑
     const moveDistance = 0.001;  // 頭部移動 1 mm
     const moveAngle = 0.003;     // 頭部旋轉約 0.17 度
 
