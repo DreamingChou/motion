@@ -3,65 +3,111 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Motion Light</title>
+  <title>Quest Motion Light</title>
+
   <style>
-    html, body {
+    html, body, canvas {
       margin: 0;
       width: 100%;
       height: 100%;
-      background: #000;
       overflow: hidden;
+      background: #000;
+    }
+
+    button {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      padding: 16px 24px;
+      font-size: 20px;
     }
   </style>
 </head>
 <body>
+  <button id="start">進入 VR</button>
+  <canvas id="canvas"></canvas>
+
   <script>
-    let lastMove = Date.now();
-    let last = { x: 0, y: 0, z: 0 };
+    const canvas = document.getElementById("canvas");
+    const button = document.getElementById("start");
 
-    const threshold = 0.8;
-    const idleTime = 1000; // 1 秒沒動作就黑屏
+    const idleTime = 1000;       // 靜止 1 秒變黑
+    const moveDistance = 0.001;  // 頭部移動 1 mm
+    const moveAngle = 0.003;     // 頭部旋轉約 0.17 度
 
-    function motion(e) {
-      const a = e.accelerationIncludingGravity;
-      if (!a) return;
+    let session;
+    let gl;
+    let space;
+    let lastPose;
+    let lastMove = 0;
 
-      const x = a.x || 0;
-      const y = a.y || 0;
-      const z = a.z || 0;
+    button.onclick = async () => {
+      if (!navigator.xr) return;
 
-      const diff =
-        Math.abs(x - last.x) +
-        Math.abs(y - last.y) +
-        Math.abs(z - last.z);
+      session = await navigator.xr.requestSession("immersive-vr");
+      gl = canvas.getContext("webgl", { xrCompatible: true });
 
-      last = { x, y, z };
+      await gl.makeXRCompatible();
 
-      if (diff > threshold) {
-        lastMove = Date.now();
-        document.body.style.background = "#fff";
+      session.updateRenderState({
+        baseLayer: new XRWebGLLayer(session, gl)
+      });
+
+      space = await session.requestReferenceSpace("local");
+
+      button.style.display = "none";
+      session.requestAnimationFrame(frame);
+    };
+
+    function frame(time, xrFrame) {
+      session.requestAnimationFrame(frame);
+
+      const pose = xrFrame.getViewerPose(space);
+      if (!pose) return;
+
+      const p = pose.transform.position;
+      const q = pose.transform.orientation;
+
+      if (lastPose) {
+        const distance = Math.hypot(
+          p.x - lastPose.x,
+          p.y - lastPose.y,
+          p.z - lastPose.z
+        );
+
+        const dot = Math.abs(
+          q.x * lastPose.qx +
+          q.y * lastPose.qy +
+          q.z * lastPose.qz +
+          q.w * lastPose.qw
+        );
+
+        const angle = 2 * Math.acos(Math.min(1, dot));
+
+        if (distance > moveDistance || angle > moveAngle) {
+          lastMove = time;
+        }
+      }
+
+      lastPose = {
+        x: p.x, y: p.y, z: p.z,
+        qx: q.x, qy: q.y, qz: q.z, qw: q.w
+      };
+
+      const moving = time - lastMove < idleTime;
+      const color = moving ? 1 : 0;
+
+      const layer = session.renderState.baseLayer;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+      gl.clearColor(color, color, color, 1);
+
+      for (const view of pose.views) {
+        const viewport = layer.getViewport(view);
+        gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+        gl.clear(gl.COLOR_BUFFER_BIT);
       }
     }
-
-    async function start() {
-      if (
-        typeof DeviceMotionEvent !== "undefined" &&
-        typeof DeviceMotionEvent.requestPermission === "function"
-      ) {
-        const permission = await DeviceMotionEvent.requestPermission();
-        if (permission !== "granted") return;
-      }
-
-      window.addEventListener("devicemotion", motion);
-    }
-
-    document.body.addEventListener("click", start, { once: true });
-
-    setInterval(() => {
-      if (Date.now() - lastMove > idleTime) {
-        document.body.style.background = "#000";
-      }
-    }, 100);
   </script>
 </body>
 </html>
